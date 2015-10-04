@@ -10,26 +10,53 @@ import java.io.IOException;
 /**
  * Compute shortest paths from a given source.
  */
-public class ShortestPathsComputation extends BasicComputation<
-    IntWritable, IntWritable, NullWritable, IntWritable> {
-  /** The shortest paths id */
-  public static final LongConfOption SOURCE_ID =
-      new LongConfOption("SimpleShortestPathsVertex.sourceId", 1,
-          "The shortest paths id");
+public class ShortestPathsComputation extends BasicComputation<IntWritable,
+							       IntWritable,
+							       NullWritable,
+							       IntWritable> {
 
-  /**
-   * Is this vertex the source id?
-   *
-   * @param vertex Vertex
-   * @return True if the source id
-   */
-  private boolean isSource(Vertex<IntWritable, ?, ?> vertex) {
-    return vertex.getId().get() == SOURCE_ID.get(getConf());
-  }
+	/** The shortest paths id */
+	public static final LongConfOption SOURCE_ID = new LongConfOption("SimpleShortestPathsVertex.sourceId",
+									  1,
+									  "The shortest paths id");
 
-  @Override
-  public void compute(
-      Vertex<IntWritable, IntWritable, NullWritable> vertex,
-      Iterable<IntWritable> messages) throws IOException {
-  }
+	/**
+	 * Is this vertex the source id?
+	 *
+	 * @param vertex Vertex
+	 * @return True if the source id
+	 */
+	private boolean isSource(Vertex<IntWritable, ?, ?> vertex) {
+		return vertex.getId().get() == SOURCE_ID.get(getConf());
+	}
+
+	@Override
+	public void compute(Vertex<IntWritable, IntWritable, NullWritable> vertex,
+			    Iterable<IntWritable> messages) throws IOException {
+
+		if (0 == getSuperstep()) {
+			vertex.setValue(new IntWritable(Integer.MAX_VALUE));
+		}
+		
+		Integer minDist = isSource(vertex)? 0 : Integer.MAX_VALUE;
+		for (IntWritable msg : messages) {
+			if (msg.get() < minDist) {
+				minDist = msg.get();
+			}
+		}
+	
+		if (minDist < vertex.getValue().get()) {
+			vertex.setValue(new IntWritable(minDist));
+
+			for (Edge<IntWritable, NullWritable> edge : vertex.getEdges()) {
+				final IntWritable neighbor = edge.getTargetVertexId();
+				final Integer distance = minDist + 1;
+
+				sendMessage(neighbor, new IntWritable(distance));
+			 }
+		}  
+
+		vertex.voteToHalt();	
+	}
 }
+
